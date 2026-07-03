@@ -22,6 +22,7 @@ hive_abm/
   topology.py      # centralized/hierarchical/mesh/adaptive graphs
   windows.py       # sliding-window kernels
 experiments/
+  animate_grid.py
   single_run.py
   density_vs_congestion.py
   plot_results.py
@@ -162,6 +163,30 @@ outputs/sweeps/plots/
 ```
 
 Generated figures include density line plots, topology-policy heatmaps, communication-loss line plots, and verification queue time series.
+
+## Export a scientific grid animation
+
+For a scientific animated 2D grid plot, use:
+
+```bash
+python experiments/animate_grid.py
+```
+
+This writes:
+
+```text
+outputs/animations/grid_replay.gif
+```
+
+Useful variants:
+
+```bash
+python experiments/animate_grid.py --layer mission_pressure
+python experiments/animate_grid.py --topology adaptive --policy-level mission_critical --layer congestion
+python experiments/animate_grid.py --output outputs/animations/grid_replay.html
+```
+
+The animation shows a selected spatial field as a heatmap, agents colored by role, task markers by state, communication edges, and synchronized metric traces.
 
 ## Legacy experiments
 

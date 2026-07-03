@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.egg-info/
 
 # Test/type/lint caches
 .pytest_cache/
@@ -21,9 +22,13 @@ env/
 outputs/*.csv
 outputs/*.jsonl
 outputs/*.png
+outputs/*.gif
+outputs/*.html
 outputs/**/*.csv
 outputs/**/*.jsonl
 outputs/**/*.png
+outputs/**/*.gif
+outputs/**/*.html
 
 # OS/editor noise
 .DS_Store
