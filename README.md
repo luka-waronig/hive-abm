@@ -1,6 +1,6 @@
 # Hive ABM
 
-This is a compact, dependency-free Python prototype for modeling **decentralized distributed AI-agent coordination** as an agent-based model.
+This is a compact, dependency-free Python prototype for modeling decentralized distributed AI-agent coordination as an agent-based model.
 
 > Hive nodes are both cognitive agents and resource-bearing infrastructure. They can contribute reasoning, compute, bandwidth, storage, sensing, relay capacity, and verification, but they can also impose congestion, duplicated work, latency, and policy overhead.
 
