@@ -6,7 +6,7 @@ import csv
 import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Mapping
 
 
 @dataclass
@@ -107,6 +107,45 @@ def write_summaries_csv(summaries: Iterable[RunSummary], path: str | Path) -> No
             row = asdict(summary)
             metadata = row.pop("metadata")
             row.update(metadata)
+            writer.writerow(row)
+
+
+def summary_to_row(summary: RunSummary) -> dict:
+    """Flatten a run summary and metadata into one CSV-friendly row."""
+
+    row = asdict(summary)
+    metadata = row.pop("metadata")
+    row.update(metadata)
+    return row
+
+
+def tick_rows(run_id: str, ticks: Iterable[TickMetrics], metadata: Mapping[str, str | int | float] | None = None) -> List[dict]:
+    """Flatten tick metrics with run/config metadata for pooled time-series CSVs."""
+
+    metadata = dict(metadata or {})
+    rows = []
+    for tick in ticks:
+        row = {"run_id": run_id}
+        row.update(metadata)
+        row.update(asdict(tick))
+        rows.append(row)
+    return rows
+
+
+def write_rows_csv(rows: Iterable[Mapping[str, object]], path: str | Path) -> None:
+    """Write heterogeneous dict rows, using the union of keys as field names."""
+
+    rows = [dict(row) for row in rows]
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if not rows:
+        path.write_text("")
+        return
+    fields = sorted({key for row in rows for key in row.keys()})
+    with path.open("w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        for row in rows:
             writer.writerow(row)
 
 

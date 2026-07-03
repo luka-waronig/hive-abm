@@ -20,6 +20,10 @@ env/
 # Generated experiment outputs
 outputs/*.csv
 outputs/*.jsonl
+outputs/*.png
+outputs/**/*.csv
+outputs/**/*.jsonl
+outputs/**/*.png
 
 # OS/editor noise
 .DS_Store

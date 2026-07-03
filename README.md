@@ -24,6 +24,8 @@ hive_abm/
 experiments/
   single_run.py
   density_vs_congestion.py
+  plot_results.py
+  run_sweeps.py
   topology_policy_factorial.py
 tests/
   test_fields.py
@@ -96,7 +98,72 @@ This writes tick-level metrics to:
 outputs/single_run_ticks.csv
 ```
 
-## Run experiments
+## Install plotting/test dependencies
+
+The simulator itself uses the Python standard library. Tests and plots use a small dev dependency set:
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
+Or:
+
+```bash
+python -m pip install -r requirements-dev.txt
+```
+
+## Run sweep suites
+
+The main reproducible runner writes both run summaries and tick-level traces:
+
+```bash
+python experiments/run_sweeps.py --preset quick
+```
+
+Outputs:
+
+```text
+outputs/sweeps/summaries.csv
+outputs/sweeps/summaries_flat.csv
+outputs/sweeps/ticks.csv
+```
+
+Presets:
+
+- `quick`: small exploratory run, intended for fast local plotting.
+- `standard`: larger replication count for more stable figures.
+- `paper`: high replication count for publication-grade robustness checks.
+
+You can restrict the suite:
+
+```bash
+python experiments/run_sweeps.py --preset standard --experiments density topology_policy
+python experiments/run_sweeps.py --preset standard --experiments communication verification
+```
+
+You can override replications:
+
+```bash
+python experiments/run_sweeps.py --preset quick --replications 5
+```
+
+## Plot results
+
+After running a sweep:
+
+```bash
+python experiments/plot_results.py --input-dir outputs/sweeps
+```
+
+Plots are written to:
+
+```text
+outputs/sweeps/plots/
+```
+
+Generated figures include density line plots, topology-policy heatmaps, communication-loss line plots, and verification queue time series.
+
+## Legacy experiments
 
 ```bash
 python experiments/density_vs_congestion.py --replications 10
