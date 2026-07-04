@@ -250,6 +250,8 @@ def make_animation(
     show_edges: bool,
     show_completed_tasks: bool,
     label_nodes: bool,
+    style: str,
+    color_by_role: bool,
 ) -> None:
     if not frames:
         raise ValueError("no frames captured")
@@ -281,10 +283,14 @@ def make_animation(
     fig.colorbar(image, ax=ax_grid, fraction=0.046, pad=0.02, label=layer)
     ax_grid.set_xlim(-0.5, cols - 0.5)
     ax_grid.set_ylim(rows - 0.5, -0.5)
-    ax_grid.set_xticks(range(cols))
-    ax_grid.set_yticks(range(rows))
+    x_major = sorted(set([0, cols - 1, *range(0, cols, max(1, cols // 5))]))
+    y_major = sorted(set([0, rows - 1, *range(0, rows, max(1, rows // 5))]))
+    ax_grid.set_xticks(x_major)
+    ax_grid.set_yticks(y_major)
+    ax_grid.set_xticks(range(cols), minor=True)
+    ax_grid.set_yticks(range(rows), minor=True)
     ax_grid.tick_params(labelsize=7)
-    ax_grid.grid(color="#ffffff", linewidth=0.45, alpha=0.45)
+    ax_grid.grid(which="minor", color="#ffffff", linewidth=0.35, alpha=0.35)
     ax_grid.set_xlabel("Column")
     ax_grid.set_ylabel("Row")
 
@@ -313,28 +319,44 @@ def make_animation(
 
     ax_info.axis("off")
     info_text = ax_info.text(0.0, 0.98, "", ha="left", va="top", fontsize=9, family="monospace")
-    leg1 = ax_info.legend(handles=role_legend_handles(), loc="lower left", title="Roles", fontsize=7, title_fontsize=8, frameon=False)
-    ax_info.add_artist(leg1)
-    ax_info.legend(handles=task_legend_handles(), loc="lower right", title="Tasks", fontsize=7, title_fontsize=8, frameon=False)
+    if color_by_role:
+        leg1 = ax_info.legend(handles=role_legend_handles(), loc="lower left", title="Roles", fontsize=7, title_fontsize=8, frameon=False)
+        ax_info.add_artist(leg1)
+        ax_info.legend(handles=task_legend_handles(), loc="lower right", title="Tasks", fontsize=7, title_fontsize=8, frameon=False)
+    else:
+        node_handles = [
+            Line2D([0], [0], marker="o", color="none", markerfacecolor="#111827", markeredgecolor="#ffffff", markersize=7, label="agent"),
+            Line2D([0], [0], marker="o", color="none", markerfacecolor="#111827", markeredgecolor="#facc15", markeredgewidth=2, markersize=7, label="working"),
+            Line2D([0], [0], marker="o", color="none", markerfacecolor="#111827", markeredgecolor="#ef4444", markeredgewidth=2, markersize=7, label="blocked"),
+        ]
+        leg1 = ax_info.legend(handles=node_handles, loc="lower left", title="Nodes", fontsize=7, title_fontsize=8, frameon=False)
+        ax_info.add_artist(leg1)
+        ax_info.legend(handles=task_legend_handles(), loc="lower right", title="Tasks", fontsize=7, title_fontsize=8, frameon=False)
 
     steps = [frame["step"] for frame in frames]
     completion = [frame["metrics"]["completion_rate"] for frame in frames]
     verified = [frame["metrics"]["verified_completion_rate"] for frame in frames]
     congestion = [frame["metrics"]["mean_congestion"] for frame in frames]
-    queue = [frame["metrics"]["awaiting_verification_tasks"] for frame in frames]
-    max_queue = max(max(queue), 1)
-    queue_scaled = [value / max_queue for value in queue]
     ax_trace.plot(steps, completion, color="#2563eb", linewidth=2.0, label="completion")
-    ax_trace.plot(steps, verified, color="#16a34a", linewidth=2.0, label="verified")
-    ax_trace.plot(steps, congestion, color="#dc2626", linewidth=1.8, label="mean congestion")
-    ax_trace.plot(steps, queue_scaled, color="#db2777", linewidth=1.6, label="verification queue scaled")
+    if style == "diagnostic":
+        queue = [frame["metrics"]["awaiting_verification_tasks"] for frame in frames]
+        max_queue = max(max(queue), 1)
+        queue_scaled = [value / max_queue for value in queue]
+        ax_trace.plot(steps, verified, color="#16a34a", linewidth=2.0, label="verified")
+        ax_trace.plot(steps, congestion, color="#dc2626", linewidth=1.8, label="mean congestion")
+        ax_trace.plot(steps, queue_scaled, color="#db2777", linewidth=1.6, label="verification queue scaled")
+    else:
+        max_congestion = max(max(congestion), 1e-9)
+        congestion_scaled = [value / max_congestion for value in congestion]
+        ax_trace.plot(steps, verified, color="#16a34a", linewidth=1.7, linestyle="--", label="verified")
+        ax_trace.plot(steps, congestion_scaled, color="#dc2626", linewidth=1.7, label="congestion scaled")
     current_line = ax_trace.axvline(steps[0], color="#111827", linewidth=1.0, alpha=0.65)
     ax_trace.set_xlim(min(steps), max(steps) if max(steps) > min(steps) else min(steps) + 1)
     ax_trace.set_ylim(0.0, 1.02)
     ax_trace.set_xlabel("Step")
     ax_trace.set_ylabel("Metric value")
     ax_trace.grid(True, alpha=0.25)
-    ax_trace.legend(loc="upper left", ncols=4, fontsize=8, frameon=False)
+    ax_trace.legend(loc="upper left", ncols=3 if style == "thesis" else 4, fontsize=8, frameon=False)
 
     def set_offsets(collection, pairs: List[Tuple[float, float]]) -> None:
         collection.set_offsets(np.asarray(pairs, dtype=float) if pairs else np.empty((0, 2)))
@@ -367,7 +389,10 @@ def make_animation(
             set_offsets(scatter, pairs)
 
         node_pairs = [(node["col"], node["row"]) for node in frame["nodes"]]
-        node_faces = ["#111827" if node["state"] == "failed" else ROLE_COLORS.get(node["role"], "#475569") for node in frame["nodes"]]
+        if color_by_role:
+            node_faces = ["#111827" if node["state"] == "failed" else ROLE_COLORS.get(node["role"], "#475569") for node in frame["nodes"]]
+        else:
+            node_faces = ["#6b7280" if node["state"] == "failed" else "#111827" for node in frame["nodes"]]
         node_edges = [STATE_EDGE_COLORS.get(node["state"], "#ffffff") for node in frame["nodes"]]
         set_offsets(node_scatter, node_pairs)
         node_scatter.set_facecolors(node_faces)
@@ -379,26 +404,37 @@ def make_animation(
             text.set_text(str(node["id"]))
 
         ax_grid.set_title(
-            f"{layer} | step {frame['step']} | completion {metrics['completion_rate']:.2f} | "
-            f"verified {metrics['verified_completion_rate']:.2f}",
+            f"{layer} field | step {frame['step']} | completion {metrics['completion_rate']:.2f}",
             fontsize=12,
         )
-        info = [
-            f"run: {config.run_id}",
-            f"topology: {config.topology}",
-            f"policy: {config.policy_level}",
-            f"nodes/tasks: {config.n_nodes}/{config.n_tasks}",
-            "",
-            f"mean congestion: {metrics['mean_congestion']:.4f}",
-            f"peak congestion: {metrics['peak_congestion']:.4f}",
-            f"messages: {metrics['messages_sent']}",
-            f"denied actions: {metrics['denied_actions']}",
-            f"verification queue: {metrics['awaiting_verification_tasks']}",
-            f"working nodes: {metrics['working_nodes']}",
-            "",
-            f"final completion: {summary['final_completion_rate']:.3f}",
-            f"final verified: {summary['final_verified_completion_rate']:.3f}",
-        ]
+        if style == "diagnostic":
+            info = [
+                f"run: {config.run_id}",
+                f"topology: {config.topology}",
+                f"policy: {config.policy_level}",
+                f"nodes/tasks: {config.n_nodes}/{config.n_tasks}",
+                "",
+                f"mean congestion: {metrics['mean_congestion']:.4f}",
+                f"peak congestion: {metrics['peak_congestion']:.4f}",
+                f"messages: {metrics['messages_sent']}",
+                f"denied actions: {metrics['denied_actions']}",
+                f"verification queue: {metrics['awaiting_verification_tasks']}",
+                f"working nodes: {metrics['working_nodes']}",
+                "",
+                f"final completion: {summary['final_completion_rate']:.3f}",
+                f"final verified: {summary['final_verified_completion_rate']:.3f}",
+            ]
+        else:
+            info = [
+                f"topology: {config.topology}",
+                f"policy: {config.policy_level}",
+                f"nodes/tasks: {config.n_nodes}/{config.n_tasks}",
+                "",
+                f"completion: {metrics['completion_rate']:.3f}",
+                f"verified: {metrics['verified_completion_rate']:.3f}",
+                f"mean congestion: {metrics['mean_congestion']:.4f}",
+                f"verification queue: {metrics['awaiting_verification_tasks']}",
+            ]
         info_text.set_text("\n".join(info))
         current_line.set_xdata([steps[idx], steps[idx]])
         return [image, edge_collection, node_scatter, info_text, current_line, *task_scatters.values(), *node_labels]
@@ -432,7 +468,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--node-failure-probability", type=float, default=0.002)
     parser.add_argument("--interval", type=int, default=180)
     parser.add_argument("--dpi", type=int, default=130)
+    parser.add_argument("--style", choices=["thesis", "diagnostic"], default="thesis")
+    parser.add_argument("--show-edges", action="store_true")
     parser.add_argument("--hide-edges", action="store_true")
+    parser.add_argument("--color-by-role", action="store_true")
     parser.add_argument("--show-completed-tasks", action="store_true")
     parser.add_argument("--label-nodes", action="store_true")
     return parser.parse_args()
@@ -464,9 +503,11 @@ def main() -> None:
         output=args.output,
         interval=args.interval,
         dpi=args.dpi,
-        show_edges=not args.hide_edges,
+        show_edges=args.show_edges or (args.style == "diagnostic" and not args.hide_edges),
         show_completed_tasks=args.show_completed_tasks,
         label_nodes=args.label_nodes,
+        style=args.style,
+        color_by_role=args.color_by_role or args.style == "diagnostic",
     )
     print(f"Wrote {args.output}")
 

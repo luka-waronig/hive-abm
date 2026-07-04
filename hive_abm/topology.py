@@ -140,7 +140,26 @@ def graph_stats(adj: Adjacency) -> Dict[str, float]:
         "mean_degree": float(mean_degree),
         "max_degree": float(max_degree),
         "centralization": float(centralization),
+        "components": float(component_count(adj)),
     }
+
+
+def component_count(adj: Adjacency) -> int:
+    """Return the number of connected components in an undirected graph."""
+
+    unseen = set(adj)
+    count = 0
+    while unseen:
+        count += 1
+        start = unseen.pop()
+        queue = deque([start])
+        while queue:
+            current = queue.popleft()
+            for neighbor in adj.get(current, set()):
+                if neighbor in unseen:
+                    unseen.remove(neighbor)
+                    queue.append(neighbor)
+    return count
 
 
 def shortest_path_lengths(adj: Adjacency, start: int, max_hops: int | None = None) -> Dict[int, int]:

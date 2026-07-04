@@ -40,6 +40,10 @@ class TickMetrics:
     safe_corridor_sum: float
     graph_centralization: float
     mean_degree: float
+    graph_components: int
+    congestion_variance: float
+    verification_queue_delta: int
+    role_activity_entropy: float
 
 
 @dataclass
@@ -61,6 +65,9 @@ class RunSummary:
     final_mean_coverage: float
     safe_corridor_length: int
     graph_centralization: float
+    graph_components: int
+    final_congestion_variance: float
+    final_role_activity_entropy: float
     mean_net_contribution: float
     metadata: Dict[str, str | int | float] = field(default_factory=dict)
 

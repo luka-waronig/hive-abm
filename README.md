@@ -31,6 +31,12 @@ experiments/
 tests/
   test_fields.py
   test_simulation.py
+docs/
+  ODD.md
+  EXPERIMENT_PROTOCOL.md
+  VISUALIZATION_GUIDE.md
+.streamlit/
+  config.toml
 ```
 
 ## Key abstractions
@@ -139,7 +145,7 @@ You can restrict the suite:
 
 ```bash
 python experiments/run_sweeps.py --preset standard --experiments density topology_policy
-python experiments/run_sweeps.py --preset standard --experiments communication verification
+python experiments/run_sweeps.py --preset standard --experiments communication verification environment
 ```
 
 You can override replications:
@@ -163,6 +169,18 @@ outputs/sweeps/plots/
 ```
 
 Generated figures include density line plots, topology-policy heatmaps, communication-loss line plots, and verification queue time series.
+The plotting script also writes `figure_captions.md` next to the generated figures.
+See `docs/VISUALIZATION_GUIDE.md` for figure design rules and thesis-safe defaults.
+
+## Run the interactive spatial workbench
+
+The Streamlit workbench opens as a field mission map. Each grid cell is a sector, the background map layer can show mission demand, network load, sensor coverage, bandwidth capacity, or interference, and aggregated markers show agent sectors and task sectors.
+
+```bash
+python -m streamlit run app.py
+```
+
+Controls include `Advance one cycle`, `Run 10 cycles`, `Run full mission`, `Reset mission`, simulation modes, a cell inspector, interventions, task queues, optional assignment details, and snapshot/metrics export.
 
 ## Export a scientific grid animation
 
@@ -183,10 +201,11 @@ Useful variants:
 ```bash
 python experiments/animate_grid.py --layer mission_pressure
 python experiments/animate_grid.py --topology adaptive --policy-level mission_critical --layer congestion
+python experiments/animate_grid.py --style diagnostic --show-edges --color-by-role
 python experiments/animate_grid.py --output outputs/animations/grid_replay.html
 ```
 
-The animation shows a selected spatial field as a heatmap, agents colored by role, task markers by state, communication edges, and synchronized metric traces.
+The default style (`thesis`) shows one spatial field as a heatmap, neutral agent markers, task markers by state, and synchronized metric traces. The `diagnostic` style adds role colors and communication edges for debugging or methods exploration.
 
 ## Legacy experiments
 

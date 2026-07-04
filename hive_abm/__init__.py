@@ -10,6 +10,8 @@ from .agents import HiveNode, ResourceProfile
 from .environment import SpatialEnvironment
 from .mission import MissionGraph, Task
 from .policy import PolicyLevel, PolicyRegime, make_policy
+from .scenarios import ENVIRONMENTS, SCENARIOS, build_simulation, scenario_config
+from .session import SimulationSession
 from .simulation import HiveSimulation, SimulationConfig
 
 __all__ = [
@@ -21,6 +23,11 @@ __all__ = [
     "PolicyLevel",
     "PolicyRegime",
     "make_policy",
+    "SCENARIOS",
+    "ENVIRONMENTS",
+    "scenario_config",
+    "build_simulation",
+    "SimulationSession",
     "HiveSimulation",
     "SimulationConfig",
 ]

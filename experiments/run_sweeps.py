@@ -19,6 +19,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from hive_abm.metrics import summary_to_row, tick_rows, write_rows_csv, write_summaries_csv
+from hive_abm.scenarios import ENVIRONMENTS, build_simulation
 from hive_abm.simulation import HiveSimulation, SimulationConfig
 
 
@@ -63,17 +64,17 @@ def density_conditions(preset: str, replications: int, seed: int, max_steps: int
                     "experiment": "density",
                     "condition": f"n_nodes={n_nodes}",
                     "replication": rep,
+                    "seed_family": seed + 10_000 + rep,
                     "n_nodes_sweep": n_nodes,
                 },
             )
 
 
 def topology_policy_conditions(preset: str, replications: int, seed: int, max_steps: int) -> Iterable[SimulationConfig]:
-    idx = 0
     for topology in TOPOLOGIES:
         for policy in POLICIES:
             for rep in range(replications):
-                idx += 1
+                common_seed = seed + 20_000 + rep
                 yield SimulationConfig(
                     rows=20,
                     cols=20,
@@ -83,12 +84,13 @@ def topology_policy_conditions(preset: str, replications: int, seed: int, max_st
                     topology=topology,
                     policy_level=policy,
                     memory_mode="local_and_shared",
-                    seed=seed + 20_000 + idx,
+                    seed=common_seed,
                     run_id=f"topopol_{topology}_{policy}_rep{rep}",
                     metadata={
                         "experiment": "topology_policy",
                         "condition": f"topology={topology}|policy={policy}",
                         "replication": rep,
+                        "common_random_seed": common_seed,
                     },
                 )
 
@@ -96,11 +98,10 @@ def topology_policy_conditions(preset: str, replications: int, seed: int, max_st
 def communication_conditions(preset: str, replications: int, seed: int, max_steps: int) -> Iterable[SimulationConfig]:
     losses = [0.0, 0.03, 0.08] if preset == "quick" else [0.0, 0.02, 0.05, 0.10, 0.16]
     horizons = [1, 3, 5] if preset == "quick" else [1, 2, 3, 5, 7]
-    idx = 0
     for loss in losses:
         for horizon in horizons:
             for rep in range(replications):
-                idx += 1
+                common_seed = seed + 30_000 + rep
                 yield SimulationConfig(
                     rows=20,
                     cols=20,
@@ -114,12 +115,13 @@ def communication_conditions(preset: str, replications: int, seed: int, max_step
                     memory_horizon_hops=max(horizon, 2),
                     direct_handoff_horizon_hops=max(1, horizon - 1),
                     message_loss_probability=loss,
-                    seed=seed + 30_000 + idx,
+                    seed=common_seed,
                     run_id=f"comm_loss{loss:.2f}_h{horizon}_rep{rep}",
                     metadata={
                         "experiment": "communication",
                         "condition": f"loss={loss:.2f}|horizon={horizon}",
                         "replication": rep,
+                        "common_random_seed": common_seed,
                         "message_loss_sweep": loss,
                         "assignment_horizon_sweep": horizon,
                     },
@@ -128,10 +130,9 @@ def communication_conditions(preset: str, replications: int, seed: int, max_step
 
 def verification_conditions(preset: str, replications: int, seed: int, max_steps: int) -> Iterable[SimulationConfig]:
     durations = [1, 2, 4] if preset == "quick" else [1, 2, 3, 5, 8]
-    idx = 0
     for verification_max in durations:
         for rep in range(replications):
-            idx += 1
+            common_seed = seed + 40_000 + rep
             yield SimulationConfig(
                 rows=20,
                 cols=20,
@@ -143,13 +144,41 @@ def verification_conditions(preset: str, replications: int, seed: int, max_steps
                 memory_mode="local_and_shared",
                 verification_duration_min=1,
                 verification_duration_max=verification_max,
-                seed=seed + 40_000 + idx,
+                seed=common_seed,
                 run_id=f"verify_dur{verification_max}_rep{rep}",
                 metadata={
                     "experiment": "verification",
                     "condition": f"verification_duration_max={verification_max}",
                     "replication": rep,
+                    "common_random_seed": common_seed,
                     "verification_duration_max_sweep": verification_max,
+                },
+            )
+
+
+def environment_conditions(preset: str, replications: int, seed: int, max_steps: int) -> Iterable[SimulationConfig]:
+    presets = ["uniform", "clustered_tasks", "noisy_region"] if preset == "quick" else list(ENVIRONMENTS)
+    for environment_preset in presets:
+        for rep in range(replications):
+            common_seed = seed + 50_000 + rep
+            yield SimulationConfig(
+                rows=20,
+                cols=20,
+                n_nodes=60,
+                n_tasks=80,
+                max_steps=max_steps,
+                topology="decentralized_mesh",
+                policy_level="moderate",
+                memory_mode="local_and_shared",
+                seed=common_seed,
+                run_id=f"environment_{environment_preset}_rep{rep}",
+                metadata={
+                    "experiment": "environment",
+                    "condition": f"environment={environment_preset}",
+                    "replication": rep,
+                    "common_random_seed": common_seed,
+                    "scenario": "baseline",
+                    "environment_preset": environment_preset,
                 },
             )
 
@@ -161,12 +190,15 @@ def build_conditions(experiments: List[str], preset: str, replications: int, see
         "topology_policy": topology_policy_conditions,
         "communication": communication_conditions,
         "verification": verification_conditions,
+        "environment": environment_conditions,
     }
     conditions: List[SimulationConfig] = []
     for experiment in experiments:
         conditions.extend(builders[experiment](preset, replications, seed, max_steps))
     fingerprint = model_fingerprint()
     for cfg in conditions:
+        tasks_per_node = cfg.n_tasks / cfg.n_nodes if cfg.n_nodes else 0.0
+        nodes_per_sector = cfg.n_nodes / (cfg.rows * cfg.cols)
         cfg.metadata = {
             **cfg.metadata,
             "preset": preset,
@@ -174,6 +206,9 @@ def build_conditions(experiments: List[str], preset: str, replications: int, see
             "max_steps": cfg.max_steps,
             "rows": cfg.rows,
             "cols": cfg.cols,
+            "tasks_per_node": tasks_per_node,
+            "nodes_per_sector": nodes_per_sector,
+            "node_sector_count": cfg.rows * cfg.cols,
         }
     return conditions
 
@@ -185,7 +220,31 @@ def run_conditions(conditions: List[SimulationConfig], output_dir: Path, write_t
     all_tick_rows = []
     started = perf_counter()
     for idx, cfg in enumerate(conditions, start=1):
-        sim = HiveSimulation(cfg)
+        if "environment_preset" in cfg.metadata or "scenario" in cfg.metadata:
+            sim = build_simulation(
+                str(cfg.metadata.get("scenario", "baseline")),
+                str(cfg.metadata.get("environment_preset", "uniform")),
+                seed=cfg.seed,
+                rows=cfg.rows,
+                cols=cfg.cols,
+                n_nodes=cfg.n_nodes,
+                n_tasks=cfg.n_tasks,
+                max_steps=cfg.max_steps,
+                topology=cfg.topology,
+                policy_level=cfg.policy_level,
+                memory_mode=cfg.memory_mode,
+                assignment_horizon_hops=cfg.assignment_horizon_hops,
+                memory_horizon_hops=cfg.memory_horizon_hops,
+                direct_handoff_horizon_hops=cfg.direct_handoff_horizon_hops,
+                message_loss_probability=cfg.message_loss_probability,
+                node_failure_probability=cfg.node_failure_probability,
+                verification_duration_min=cfg.verification_duration_min,
+                verification_duration_max=cfg.verification_duration_max,
+                run_id=cfg.run_id,
+                metadata=cfg.metadata,
+            )
+        else:
+            sim = HiveSimulation(cfg)
         summary = sim.run()
         summaries.append(summary)
         row = summary_to_row(summary)
@@ -217,7 +276,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--experiments",
         nargs="+",
-        choices=["density", "topology_policy", "communication", "verification", "all"],
+        choices=["density", "topology_policy", "communication", "verification", "environment", "all"],
         default=["all"],
     )
     parser.add_argument("--replications", type=int, default=None)
@@ -229,7 +288,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    experiments = ["density", "topology_policy", "communication", "verification"] if "all" in args.experiments else args.experiments
+    experiments = ["density", "topology_policy", "communication", "verification", "environment"] if "all" in args.experiments else args.experiments
     replications = args.replications if args.replications is not None else preset_replications(args.preset)
     conditions = build_conditions(experiments, args.preset, replications, args.seed)
     print(f"Running {len(conditions)} conditions with preset={args.preset}, replications={replications}")

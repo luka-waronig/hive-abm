@@ -27,10 +27,16 @@ class SpatialEnvironment:
     base_compute_capacity: float = 1.0
     base_noise: float = 0.05
     layers: Dict[str, Grid] = field(default_factory=dict)
+    static_noise: Grid = field(default_factory=list)
+    static_bandwidth_delta: Grid = field(default_factory=list)
+    static_compute_delta: Grid = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.rows <= 0 or self.cols <= 0:
             raise ValueError("rows and cols must be positive")
+        self.static_noise = zeros_2d(self.rows, self.cols, 0.0)
+        self.static_bandwidth_delta = zeros_2d(self.rows, self.cols, 0.0)
+        self.static_compute_delta = zeros_2d(self.rows, self.cols, 0.0)
         self.reset_layers()
 
     def reset_layers(self) -> None:
@@ -89,18 +95,36 @@ class SpatialEnvironment:
         coverage = apply_rect_add_2d(self.rows, self.cols, coverage_cmds)
         noise_add = apply_rect_add_2d(self.rows, self.cols, noise_cmds)
 
-        self.layers["bandwidth_capacity"] = self._add_base(bw_capacity, self.base_bandwidth_capacity)
+        self.layers["bandwidth_capacity"] = self._add_grid(self._add_base(bw_capacity, self.base_bandwidth_capacity), self.static_bandwidth_delta)
         self.layers["bandwidth_demand"] = bw_demand
-        self.layers["compute_capacity"] = self._add_base(compute_capacity, self.base_compute_capacity)
+        self.layers["compute_capacity"] = self._add_grid(self._add_base(compute_capacity, self.base_compute_capacity), self.static_compute_delta)
         self.layers["compute_demand"] = compute_demand
         self.layers["sensor_coverage"] = coverage
-        self.layers["noise"] = self._add_base(noise_add, self.base_noise)
+        self.layers["noise"] = self._add_grid(self._add_base(noise_add, self.base_noise), self.static_noise)
         self.layers["congestion"] = self._compute_congestion()
         if unresolved_tasks is not None:
             self.layers["mission_pressure"] = self._compute_mission_pressure(unresolved_tasks)
 
     def _add_base(self, grid: Grid, base: float) -> Grid:
         return [[cell + base for cell in row] for row in grid]
+
+    def _add_grid(self, grid: Grid, delta: Grid) -> Grid:
+        return [[max(0.0, grid[r][c] + delta[r][c]) for c in range(self.cols)] for r in range(self.rows)]
+
+    def add_noise_region(self, r1: int, c1: int, r2: int, c2: int, amount: float) -> None:
+        """Persistently add environmental noise to a rectangular region."""
+
+        for r in range(max(0, r1), min(self.rows - 1, r2) + 1):
+            for c in range(max(0, c1), min(self.cols - 1, c2) + 1):
+                self.static_noise[r][c] = max(0.0, self.static_noise[r][c] + amount)
+
+    def add_capacity_region(self, r1: int, c1: int, r2: int, c2: int, bandwidth: float = 0.0, compute: float = 0.0) -> None:
+        """Persistently adjust bandwidth/compute capacity in a rectangular region."""
+
+        for r in range(max(0, r1), min(self.rows - 1, r2) + 1):
+            for c in range(max(0, c1), min(self.cols - 1, c2) + 1):
+                self.static_bandwidth_delta[r][c] += bandwidth
+                self.static_compute_delta[r][c] += compute
 
     def _compute_congestion(self) -> Grid:
         out = zeros_2d(self.rows, self.cols, 0.0)

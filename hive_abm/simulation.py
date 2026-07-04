@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import random
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from .actions import Action, MOVE, OBSERVE, RELAY, SOLVE, VERIFY, WAIT
@@ -475,12 +475,92 @@ class HiveSimulation:
             target = (r, c) if r >= 0 else node.position
         node.move_towards(target, self.environment.rows, self.environment.cols)
 
+    def _layer_variance(self, name: str) -> float:
+        grid = self.environment.layers[name]
+        mean = self.environment.layer_mean(name)
+        total = sum((cell - mean) ** 2 for row in grid for cell in row)
+        return total / (self.environment.rows * self.environment.cols)
+
+    def _role_activity_entropy(self) -> float:
+        counts: Dict[str, int] = {}
+        for node in self.nodes:
+            if node.state in {"working", "relaying", "observing", "blocked"}:
+                counts[node.role] = counts.get(node.role, 0) + 1
+        total = sum(counts.values())
+        if total <= 0:
+            return 0.0
+        entropy = 0.0
+        for count in counts.values():
+            p = count / total
+            entropy -= p * math.log(p, 2)
+        return entropy
+
+    def _edge_rows(self) -> List[Tuple[int, int]]:
+        edges = []
+        for source, targets in self.adjacency.items():
+            for target in targets:
+                if source < target:
+                    edges.append((source, target))
+        return sorted(edges)
+
+    def snapshot(self, include_layers: bool = True) -> dict:
+        """Return a JSON-serializable state snapshot for dashboards/reproducibility."""
+
+        return {
+            "step": self.step_idx,
+            "config": asdict(self.config),
+            "nodes": [
+                {
+                    "id": node.node_id,
+                    "role": node.role,
+                    "state": node.state,
+                    "position": node.position,
+                    "task_id": node.current_task_id,
+                    "load": node.current_load,
+                    "completed_tasks": node.completed_tasks,
+                    "failed_attempts": node.failed_attempts,
+                    "trust": node.trust,
+                    "reliability": node.reliability,
+                    "permissions": sorted(node.permissions),
+                }
+                for node in self.nodes
+            ],
+            "tasks": [
+                {
+                    "id": task.task_id,
+                    "type": task.task_type,
+                    "sector": task.sector,
+                    "status": task.status,
+                    "assigned_to": task.assigned_to,
+                    "phase": task.active_phase,
+                    "work_remaining": task.work_remaining,
+                    "assignment_hops": task.assignment_hops,
+                    "solved_by": task.solved_by,
+                    "artifact_id": task.artifact_id,
+                    "difficulty": task.difficulty,
+                    "value": task.value,
+                    "verified": task.verified,
+                    "quality": task.quality,
+                    "solution_quality": task.solution_quality,
+                    "attempts": task.attempts,
+                    "verification_attempts": task.verification_attempts,
+                }
+                for task in self.mission.tasks.values()
+            ],
+            "edges": self._edge_rows(),
+            "layers": self.environment.layers if include_layers else {},
+            "latest_tick": asdict(self.metrics.ticks[-1]) if self.metrics.ticks else {},
+            "summary": asdict(self.summary()) if self.metrics.ticks else {},
+        }
+
     def _log_tick(self, denied: int, messages: int, duplicate_work: int) -> None:
         peak_congestion, pr, pc = self.environment.layer_max("congestion")
         corridor_len, _, _, corridor_sum = self.environment.safest_congestion_corridor_by_row(threshold=self.environment.rows * 0.5)
         stats = graph_stats(self.adjacency)
         task_counts = self.mission.status_counts()
         active_hops = [task.assignment_hops for task in self.mission.tasks.values() if task.status == "in_progress"]
+        previous_queue = self.metrics.ticks[-1].awaiting_verification_tasks if self.metrics.ticks else 0
+        current_queue = task_counts.get("awaiting_verification", 0)
         tick = TickMetrics(
             step=self.step_idx,
             completion_rate=self.mission.completion_rate(),
@@ -511,6 +591,10 @@ class HiveSimulation:
             safe_corridor_sum=corridor_sum,
             graph_centralization=stats["centralization"],
             mean_degree=stats["mean_degree"],
+            graph_components=int(stats["components"]),
+            congestion_variance=self._layer_variance("congestion"),
+            verification_queue_delta=current_queue - previous_queue,
+            role_activity_entropy=self._role_activity_entropy(),
         )
         self.metrics.log_tick(tick)
 
@@ -558,6 +642,9 @@ class HiveSimulation:
             final_mean_coverage=last.mean_coverage if last else 0.0,
             safe_corridor_length=last.safe_corridor_length if last else 0,
             graph_centralization=stats["centralization"],
+            graph_components=int(stats["components"]),
+            final_congestion_variance=last.congestion_variance if last else 0.0,
+            final_role_activity_entropy=last.role_activity_entropy if last else 0.0,
             mean_net_contribution=mean_net,
             metadata=meta,
         )

@@ -15,7 +15,9 @@ dev = [
     "numpy>=1.26",
     "pandas>=2.2",
     "pillow>=10.0",
+    "plotly>=5.22",
     "pytest>=8.0",
+    "streamlit>=1.36",
 ]
 
 [tool.setuptools.packages.find]
