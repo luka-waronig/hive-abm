@@ -1,4 +1,4 @@
-# Hive ABM
+# Hive agent-based model
 
 This is a compact, dependency-free Python prototype for modeling decentralized distributed AI-agent coordination as an agent-based model.
 
@@ -216,9 +216,9 @@ python experiments/topology_policy_factorial.py --replications 10
 
 Outputs are written to `outputs/*.csv`.
 
-## Thesis use
+## Experimental use
 
-This MVP supports the following thesis-level experiments:
+This code release currently supports the following experiments:
 
 1. **Node density vs congestion**: identify the coordination carrying capacity where adding more agents stops helping and begins hurting.
 2. **Topology x policy confinement**: compare centralized, hierarchical, mesh, and adaptive topologies under permissive, moderate, strict, and mission-critical policy regimes.
@@ -227,9 +227,9 @@ This MVP supports the following thesis-level experiments:
 5. **Verification bottlenecks**: measure queues and delays introduced by mission-critical artifact verification.
 6. **Memory locality and relay dependence**: compare local, shared, and hybrid memory under constrained communication horizons.
 
-## Calibration to real Hive traces
+## Calibration to real traces
 
-Later, deployed Hive logs can parameterize the ABM using empirical estimates such as:
+Later, deployed agentic logs can parameterize the ABM using empirical estimates such as:
 
 - per-role task success rates
 - tool-denial rates under policy levels
@@ -240,4 +240,3 @@ Later, deployed Hive logs can parameterize the ABM using empirical estimates suc
 - artifact quality scores
 - verification acceptance/rejection rates
 
-This closes the loop between the real Hive system and the ABM.
